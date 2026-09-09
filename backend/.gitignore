@@ -1,0 +1,25 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Django
+db.sqlite3
+staticfiles/
+media/
+
+# Test / tooling
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# IDEs
+.vscode/
+.idea/

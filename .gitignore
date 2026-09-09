@@ -1,0 +1,47 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+\.ruff_cache/
+
+# Django generated/runtime data
+db.sqlite3
+media/
+staticfiles/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+.npm/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Archives / generated exports
+*.zip
+*.tar
+*.tar.gz

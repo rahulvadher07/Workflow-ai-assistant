@@ -1,0 +1,16 @@
+cd backend
+ python -m venv venv    
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py create_superadmin
+python manage.py runserver
+
+
+
+Copy-Item .env.example .env
+
+
+cd frontend
+npm install
+npm run dev

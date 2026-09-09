@@ -1,0 +1,133 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: workflow_ai
+      POSTGRES_USER: workflow_ai
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me-in-production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow_ai -d workflow_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-replace-this-secret}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_ENGINE: postgresql
+      DB_NAME: workflow_ai
+      DB_USER: workflow_ai
+      DB_PASSWORD: ${DB_PASSWORD:-change-me-in-production}
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS_CHANNEL_LAYER: "True"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost}
+      AI_SEMANTIC_RETRIEVAL_ENABLED: ${AI_SEMANTIC_RETRIEVAL_ENABLED:-True}
+      AI_SEMANTIC_MODEL: ${AI_SEMANTIC_MODEL:-all-MiniLM-L6-v2}
+      AI_OBSERVABILITY_ENABLED: ${AI_OBSERVABILITY_ENABLED:-True}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/admin/login/', timeout=5)\""]
+      interval: 15s
+      timeout: 6s
+      retries: 8
+      start_period: 30s
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A config.celery worker -l INFO
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-replace-this-secret}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DB_ENGINE: postgresql
+      DB_NAME: workflow_ai
+      DB_USER: workflow_ai
+      DB_PASSWORD: ${DB_PASSWORD:-change-me-in-production}
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      USE_REDIS_CHANNEL_LAYER: "True"
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      AI_SEMANTIC_RETRIEVAL_ENABLED: ${AI_SEMANTIC_RETRIEVAL_ENABLED:-True}
+      AI_SEMANTIC_MODEL: ${AI_SEMANTIC_MODEL:-all-MiniLM-L6-v2}
+      AI_OBSERVABILITY_ENABLED: ${AI_OBSERVABILITY_ENABLED:-True}
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    command: celery -A config.celery beat -l INFO
+    environment:
+      DEBUG: "False"
+      SECRET_KEY: ${SECRET_KEY:-replace-this-secret}
+      DB_ENGINE: postgresql
+      DB_NAME: workflow_ai
+      DB_USER: workflow_ai
+      DB_PASSWORD: ${DB_PASSWORD:-change-me-in-production}
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      AI_SEMANTIC_RETRIEVAL_ENABLED: ${AI_SEMANTIC_RETRIEVAL_ENABLED:-True}
+      AI_SEMANTIC_MODEL: ${AI_SEMANTIC_MODEL:-all-MiniLM-L6-v2}
+    depends_on:
+      backend:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./Frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - static_data:/srv/static:ro
+      - media_data:/srv/media:ro
+
+volumes:
+  postgres_data:
+  static_data:
+  media_data:
