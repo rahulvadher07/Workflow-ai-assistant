@@ -34,4 +34,4 @@ Realtime publishing is transport-only and failures never block domain persistenc
 ## Observability and deployment
 AI incidents and turn timing use the `workflow_ai.ai` logger without recording secrets, full prompts or tool arguments. `python manage.py ai_healthcheck` validates the rule/tool catalog, database connectivity, provider configuration and Knowledge & Policy indexing/semantic availability.
 
-Production deployment assets are provided under the project root: `docker-compose.yml`, `backend/Dockerfile`, `Frontend/Dockerfile` and the frontend nginx reverse-proxy configuration. The compose stack uses PostgreSQL, Redis, Daphne, Celery worker/beat and nginx-served React. Secrets/configuration are supplied through environment variables.
+Production deployment assets are provided under the project root: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` and the frontend nginx reverse-proxy configuration. The compose stack uses PostgreSQL, Redis, Daphne, Celery worker/beat and nginx-served React. Secrets/configuration are supplied through environment variables.

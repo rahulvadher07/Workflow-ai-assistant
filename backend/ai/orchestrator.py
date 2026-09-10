@@ -966,6 +966,69 @@ def _extract_attendance_month(text):
     return f"{int(match.group(1)):04d}-{month:02d}"
 
 
+def _is_leave_policy_question(text):
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return bool(re.search(r"\b(?:what(?:'s| is)|tell me|show|give me)\s+(?:the\s+)?leave policy\b", normalized) or normalized in {"leave policy", "what is leave policy", "what is the leave policy"})
+
+
+def _is_company_working_hours_question(text):
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return normalized in {
+        "company working hours",
+        "company work hours",
+        "office working hours",
+        "office work hours",
+        "what are the company working hours",
+        "what are the working hours",
+        "what is the company working hours",
+    }
+
+
+def _is_generic_my_attendance_summary_question(text):
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return normalized in {
+        "show my attendance",
+        "show my attendance summary",
+        "my attendance summary",
+        "show my monthly attendance",
+        "my monthly attendance",
+    }
+
+
+def _is_who_is_my_hod_question(text):
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return normalized in {
+        "who is my hod",
+        "who is the hod",
+        "who is my h.o.d",
+        "who is my head of department",
+        "who is the head of my department",
+        "who heads my department",
+    }
+
+
+def _is_generic_team_members_question(text):
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return normalized in {
+        "show team members",
+        "list team members",
+        "show my team members",
+        "list my team members",
+        "who are my team members",
+        "who is in my team",
+        "who are in my team",
+    }
+
+
+def _format_policy_statements(result, unavailable_message):
+    if not isinstance(result, dict):
+        return unavailable_message
+    statements = [str(item).strip() for item in (result.get("statements") or []) if str(item).strip()]
+    if not statements:
+        return unavailable_message
+    return "\n".join(f"• {item}" for item in statements[:8])
+
+
 def _format_read_tool_result(tool_name, result):
     if not isinstance(result, dict):
         return "I couldn't read that information right now."
@@ -1720,7 +1783,89 @@ def _deterministic_report_action(user, conversation, text, idempotency_seed=None
     n = re.sub(r"\s+", " ", (text or "").strip().lower())
     if not n:
         return None
-    from .tools import report_tools
+    from .tools import report_tools, knowledge_tools
+
+    # Focused company knowledge questions must be handled before the generic
+    # attendance/report router. Otherwise "Company working hours" is mistaken
+    # for the authenticated user's personal attendance report.
+    if _is_leave_policy_question(text):
+        result = knowledge_tools.search_leave_policy(user)
+        return _format_policy_statements(
+            result,
+            "I couldn't find an active leave policy in the current Knowledge & Policy or Company Rules.",
+        )
+
+    if _is_company_working_hours_question(text):
+        result = knowledge_tools.search_working_hours_policy(user)
+        return _format_policy_statements(
+            result,
+            "I couldn't find company working-hours information in the current Knowledge & Policy or Company Rules.",
+        )
+
+    if _is_generic_team_members_question(text):
+        result = report_tools.get_current_user_team_members(user)
+        if not isinstance(result, dict):
+            return "NO TEAM YET"
+        teams = result.get("teams") or []
+        if not teams:
+            return "NO TEAM YET"
+        lines = []
+        for team in teams:
+            names = [m.get("name") or m.get("username") for m in team.get("members", []) if m.get("name") or m.get("username")]
+            if names:
+                lines.append(f"{team.get('team', 'Team')}: " + ", ".join(names))
+            else:
+                lines.append(f"{team.get('team', 'Team')}: NO TEAM YET")
+        return "\n".join(lines) if lines else "NO TEAM YET"
+
+    if _is_who_is_my_hod_question(text):
+        from accounts.models import User
+        from company.models import department_hod_queryset
+        profile = getattr(user, "employee_profile", None)
+        if str(getattr(user, "role", "")) == str(User.Role.HOD):
+            departments = list(user.hod_departments.all().order_by("name", "id"))
+            legacy_department = getattr(user, "department_headed", None)
+            if legacy_department is not None and legacy_department not in departments:
+                departments.append(legacy_department)
+            departments = [d for i, d in enumerate(departments) if d.id not in {x.id for x in departments[:i]}]
+            if not departments:
+                return "You are an HOD, but no department assignment is configured for your account."
+            labels = ", ".join(d.name for d in departments)
+            prefix = "You are the HOD of" if len(departments) == 1 else "You are the HOD of"
+            return f"{prefix} {labels} department{'' if len(departments) == 1 else 's'}."
+        if profile and getattr(profile, "department_id", None):
+            hods = department_hod_queryset(profile.department).order_by("first_name", "last_name", "username")
+            names = []
+            seen = set()
+            for hod in hods:
+                name = hod.get_full_name() or hod.username
+                key = name.casefold()
+                if key not in seen:
+                    seen.add(key)
+                    names.append(name)
+            if names:
+                return f"Your HOD is {', '.join(names)}."
+        return "I couldn't find an HOD assigned to your department."
+
+    if _is_generic_my_attendance_summary_question(text):
+        attendance = report_tools.get_my_attendance_report(user, "this month")
+        if not isinstance(attendance, dict) or attendance.get("error"):
+            return _format_report_result("get_my_attendance_report", attendance)
+        leave_report = report_tools.get_my_leave_report(user, "this month")
+        approved_leave_days = 0
+        if isinstance(leave_report, dict) and not leave_report.get("error"):
+            for leave in leave_report.get("requests", []):
+                if str(leave.get("status", "")).upper() == "APPROVED":
+                    try:
+                        approved_leave_days += int(leave.get("days") or 0)
+                    except (TypeError, ValueError):
+                        pass
+        return (
+            f"Monthly attendance: {attendance.get('present_days', 0)} present day(s), "
+            f"{approved_leave_days} approved leave day(s), {attendance.get('absent_days', 0)} absent day(s), "
+            f"{attendance.get('late_days', 0)} late day(s), and {attendance.get('total_working_hours', 0)} working hour(s)."
+        )
+
     is_team = bool(re.search(r"\b(team|my team)\b", n))
     # Scope precedence: explicit employee, then explicit team, then personal.
     employee_match = re.search(r"(?:for|of|about)\s+([a-z][a-z .'-]{1,60}?)(?=\s+(?:attendance|leave|working|hours|tasks?|payroll)|$)", text or "", re.I)
@@ -1793,7 +1938,19 @@ def _format_report_result(tool_name, result):
     if tool_name == "get_team_attendance_report": return f"Team {result.get('team')} attendance report: {len(result.get('members',[]))} member(s) included for {result.get('start_date')} to {result.get('end_date')}."
     if tool_name in {"get_my_leave_report","get_employee_leave_report","get_team_leave_report"}: return f"Leave report for {result.get('start_date')} to {result.get('end_date')}: {result.get('count',0)} request(s), {result.get('total_days',0)} day(s), {result.get('pending',0)} pending, {result.get('approved',0)} approved, {result.get('cancelled',0)} cancelled."
     if tool_name in {"get_my_task_report","get_team_task_report"}: return f"Task report for {result.get('start_date')} to {result.get('end_date')}: {result.get('count',0)} task(s), {result.get('completed',0)} completed, {result.get('pending',0)} pending, {result.get('overdue',0)} overdue."
-    if tool_name == "get_team_members": return f"Team {result.get('team')} has {result.get('member_count',0)} active member(s): " + ", ".join(m['name'] for m in result.get('members',[])[:20])
+    if tool_name == "get_team_members":
+        names = []
+        seen = set()
+        for member in result.get("members", [])[:20]:
+            name = member.get("name") or member.get("username")
+            if not name:
+                continue
+            key = str(name).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            names.append(str(name))
+        return f"Team {result.get('team')} has {len(names)} active member(s): " + (", ".join(names) if names else "NO TEAM YET")
     if tool_name == "get_my_payroll_summary": return "Payroll/payslip data: " + (", ".join(f"{p['period']} net {p['net_salary']}" for p in result.get('payslips',[])[:12]) or "No payslip records found.")
     if tool_name == "get_team_payroll_summary": return f"Team {result.get('team')} payroll: {len(result.get('payslips',[]))} payslip record(s) found."
     if tool_name == "get_company_info": return f"Company: {result.get('name')}. Standard shift starts at {result.get('shift_start_time')} for {round(result.get('standard_shift_minutes',0)/60,2)} hours; standard break is {result.get('standard_break_minutes',0)} minutes."

@@ -310,6 +310,48 @@ def get_team_members(user, team_name):
     return {"team": team.name, "member_count": members.count(), "members": [{"name": m.get_full_name() or m.username, "username": m.username, "role": m.role} for m in members]}
 
 
+def get_current_user_team_members(user):
+    """List active members of the authenticated user's own team(s)."""
+    memberships = TeamMembership.objects.filter(employee=user).select_related("team").order_by("team__name", "team__id")
+    teams = [membership.team for membership in memberships]
+    # HODs may not have an explicit membership row, so use their managed teams
+    # only when that is the user's own operational scope.
+    if not teams and _role(user) == User.Role.HOD:
+        teams = list(_managed_teams(user).order_by("name", "id"))
+
+    if not teams:
+        return {"teams": [], "member_count": 0, "members": []}
+
+    unique_teams = []
+    seen_team_ids = set()
+    for team in teams:
+        if team.id not in seen_team_ids:
+            seen_team_ids.add(team.id)
+            unique_teams.append(team)
+
+    members = User.objects.filter(
+        status=User.Status.ACTIVE,
+        team_memberships__team__in=unique_teams,
+    ).distinct().order_by("first_name", "last_name", "username")
+
+    team_payload = []
+    for team in unique_teams:
+        team_members = members.filter(team_memberships__team=team).distinct()
+        team_payload.append({
+            "team": team.name,
+            "members": [
+                {"name": member.get_full_name() or member.username, "username": member.username, "role": member.role}
+                for member in team_members
+            ],
+        })
+
+    return {
+        "teams": team_payload,
+        "member_count": sum(len(item["members"]) for item in team_payload),
+        "members": [member for item in team_payload for member in item["members"]],
+    }
+
+
 def get_team_details(user, team_name):
     team, error = _resolve_team(user, team_name)
     if error: return {"error": error}

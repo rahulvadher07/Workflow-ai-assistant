@@ -55,7 +55,7 @@ export default function CompanyRulesPage() {
   }
 
   if (loading) return <LoadingScreen />;
-  return <div className="page-shell space-y-5">
+  return <div className="page-shell admin-page space-y-5">
     <PageHeader eyebrow="Governance" title="Company Rules" description="Keep company-wide operating rules and payroll settings in one place." />
     {error && <ErrorBanner message={error?.message ? error.message : error} />}
 

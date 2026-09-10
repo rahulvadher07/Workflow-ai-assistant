@@ -50,7 +50,7 @@ export default function HODsPage() {
   }
 
   if (loading) return <div />;
-  return <div className="page-shell space-y-5">
+  return <div className="page-shell admin-page space-y-5">
     <PageHeader eyebrow="People leadership" title="HOD Management" description="Create, review and maintain HOD accounts and department assignments." />
     {error && <ErrorBanner message={error} />}
     {!editing && <div className="flex justify-end"><Button onClick={()=>{setShowCreate(true);setError(null)}} className="gap-1.5"><Plus className="h-4 w-4"/> Create HOD</Button></div>}

@@ -74,13 +74,13 @@ export default function ChatPanel({ conversation, teamId, onIssueUpdated, onTask
   }
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-border-subtle bg-surface-card">
+    <div className="workspace-chat-card">
       {conversation.issue && (
         <IssueHeader issue={conversation.issue} conversationTeamId={teamId} onUpdated={onIssueUpdated} />
       )}
 
       {conversation.kind === "ISSUE" && !conversation.task && (
-        <div className="border-b border-border-subtle px-5 py-3">
+        <div className="border-b border-border-subtle px-4 py-2.5">
           <button
             onClick={() => setShowNewTask(true)}
             className="focus-ring flex items-center gap-1.5 text-xs font-medium text-sky-600 hover:underline"
@@ -91,21 +91,21 @@ export default function ChatPanel({ conversation, teamId, onIssueUpdated, onTask
       )}
 
       {conversation.task && (
-        <div className="border-b border-border-subtle p-4">
+        <div className="border-b border-border-subtle p-3">
           <TaskCard task={conversation.task} onUpdated={onTaskCreated} />
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="workspace-chat-messages flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {!loading && messages.length === 0 && (
           <p className="py-8 text-center text-sm text-ink-400">No messages yet. Say hello.</p>
         )}
         {messages.map((m) => (
           <div key={m.id} className={m.sender === user?.id ? "flex justify-end" : "flex justify-start"}>
-            <div className={`max-w-[70%] rounded-xl px-3.5 py-2 text-sm ${m.sender === user?.id ? "bg-sky-600 text-white" : "bg-slate-100 text-ink-900"}`}>
+            <div className={`workspace-message max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm ${m.sender === user?.id ? "sent" : "received"}`}>
               {m.sender !== user?.id && <p className="mb-0.5 text-xs font-medium opacity-70">{m.sender_name}</p>}
               <p className="whitespace-pre-wrap">{m.text}</p>
-              <p className={`mt-1 text-[10px] ${m.sender === user?.id ? "text-white/70" : "text-ink-400"}`}>{formatDateTime(m.created_at)}</p>
+              <p className={`mt-1 text-[10px] ${m.sender === user?.id ? "text-white/65" : "text-ink-400"}`}>{formatDateTime(m.created_at)}</p>
             </div>
           </div>
         ))}
@@ -113,17 +113,17 @@ export default function ChatPanel({ conversation, teamId, onIssueUpdated, onTask
 
       {sendError && <div className="px-4 pt-3"><ErrorBanner message={sendError} /></div>}
 
-      <form onSubmit={handleSend} className="flex items-center gap-2 border-t border-border-subtle p-3">
+      <form onSubmit={handleSend} className="workspace-chat-input-row">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Message the team…"
-          className="focus-ring flex-1 rounded-lg border border-border-subtle px-3.5 py-2 text-sm"
+          className="focus-ring flex-1 rounded-xl border border-border-subtle bg-white px-3.5 py-2.5 text-sm"
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="focus-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:bg-sky-300"
+          className="focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:bg-sky-300"
         >
           <Send className="h-4 w-4" />
         </button>

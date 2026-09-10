@@ -66,7 +66,7 @@ export default function KnowledgePage() {
   if (loading) return <div />;
 
   return (
-    <div className="page-shell space-y-5">
+    <div className="page-shell admin-page space-y-5">
       <PageHeader eyebrow="Company intelligence" title="Knowledge & Policy" description="Manage the documents used as an authoritative knowledge source for policy-aware answers." />
       <div className="flex justify-end"><Button onClick={()=>{setOpen(true);setError(null)}} className="gap-1.5"><Plus className="h-4 w-4"/> Add policy PDF</Button></div>
       {open && <div className="modal-backdrop fixed inset-0 z-30 flex items-center justify-center p-4"><Card className="modal-panel w-full max-w-xl"><div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-semibold">Upload policy document</h2><button onClick={()=>setOpen(false)}><X className="h-4 w-4"/></button></div>

@@ -50,14 +50,22 @@ export default function EmployeesPage() {
   if (loading) return <div />;
 
   return (
-    <div className="page-shell space-y-5">
-      <PageHeader eyebrow="People" title="Employees" description="Review employee records, roles and profile details." />
+    <div className="page-shell admin-page space-y-5">
+      <PageHeader eyebrow="Administration" title="Employees" description="Manage your organization’s employees, roles and access." />
       {error && <ErrorBanner message={error} />}
-      <Card className="section-card">
+      <div className="admin-stat-grid">
+        <div className="admin-stat-card"><div className="admin-stat-icon admin-icon-green"><Users2 className="h-4 w-4" /></div><div><p className="admin-stat-label">Total Employees</p><p className="admin-stat-value">{employees.length}</p></div></div>
+        <div className="admin-stat-card"><div className="admin-stat-icon admin-icon-blue"><Users2 className="h-4 w-4" /></div><div><p className="admin-stat-label">Active Accounts</p><p className="admin-stat-value">{employees.filter(e => String(e.status || '').toUpperCase() === 'ACTIVE' || e.is_active === true).length || employees.length}</p></div></div>
+        <div className="admin-stat-card"><div className="admin-stat-icon admin-icon-amber"><Users2 className="h-4 w-4" /></div><div><p className="admin-stat-label">HOD Accounts</p><p className="admin-stat-value">{employees.filter(e => String(e.role || '').toUpperCase() === 'HOD').length}</p></div></div>
+        <div className="admin-stat-card"><div className="admin-stat-icon admin-icon-purple"><Users2 className="h-4 w-4" /></div><div><p className="admin-stat-label">Departments</p><p className="admin-stat-value">{departments.length}</p></div></div>
+      </div>
+      <Card className="section-card admin-table-card">
         {employees.length === 0 ? (
           <EmptyState icon={Users2} title="No employees found" />
         ) : (
-          <table className="w-full text-sm">
+          <>
+            <div className="admin-table-head"><div><h3>Employee Directory</h3><p>Search and review employee access details.</p></div><div className="admin-table-caption">{employees.length} records</div></div>
+            <table className="w-full text-sm">
             <thead><tr className="border-b border-border-subtle text-left text-xs text-ink-500">
               <th className="pb-2 font-medium">Name</th><th className="pb-2 font-medium">Employee Code</th><th className="pb-2 font-medium">Department</th><th className="pb-2 font-medium">Role</th><th className="pb-2" />
             </tr></thead>
@@ -72,7 +80,8 @@ export default function EmployeesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </>
         )}
       </Card>
 
